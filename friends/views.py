@@ -1,8 +1,6 @@
 from rest_framework.decorators import api_view
 from django.contrib.auth.mixins import LoginRequiredMixin
 from accounts.models import User
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 from django.http import JsonResponse
 from django.views.generic import ListView
 from django.db.models import Q
@@ -22,9 +20,13 @@ class FindFriendsListView(LoginRequiredMixin, ListView):
         sent_request = list(
             FriendshipRequest.objects.filter(Q(from_user=self.request.user))
             .exclude(to_user_id=self.request.user.id)
-            .values_list('to_user_id', flat=True))
-        users = User.objects.exclude(id__in=current_user_friends).exclude(id__in=sent_request).exclude(
-            id=self.request.user.id)
+            .values_list('to_user_id', flat=True)
+        )
+
+        users = User.objects.exclude(id__in=current_user_friends) \
+            .exclude(id__in=sent_request) \
+            .exclude(id=self.request.user.id)
+
         return users
 
 
@@ -44,52 +46,50 @@ def send_request(request, username=None):
     if username is not None:
         friend_user = User.objects.get(username=username)
         try:
-            friend_request = Friend.objects.add_friend(request.user, friend_user, message='Hi! I would like to add you')
+            friend_request = Friend.objects.add_friend(
+                request.user,
+                friend_user,
+                message='Hi! I would like to add you'
+            )
         except Exception as e:
-            data = {
+            return JsonResponse({
                 'status': False,
                 'message': str(e),
-            }
-            return JsonResponse(data)
-        channel_layer = get_channel_layer()
-        channel = "all_friend_requests_{}".format(friend_user.username)
-        async_to_sync(channel_layer.group_send)(
-            channel, {
-                "type": "notify",  # method name
-                "command": "new_friend_request",
-                "notification": FriendshipRequestSerializer(friend_request).data
-            }
-        )
-        data = {
+            })
+
+        # تم حذف Realtime (channels)
+        return JsonResponse({
             'status': True,
             'message': "Request sent.",
-        }
-        return JsonResponse(data)
-    else:
-        pass
+        })
 
 
 def accept_request(request, friend=None):
     if friend is not None:
         friend_user = User.objects.get(username=friend)
-        friend_request = FriendshipRequest.objects.get(to_user=request.user, from_user=friend_user)
+        friend_request = FriendshipRequest.objects.get(
+            to_user=request.user,
+            from_user=friend_user
+        )
         friend_request.accept()
-        # CustomNotification.objects.filter(recipient=current_user, actor=friend_user).delete()
-        data = {
+
+        return JsonResponse({
             'status': True,
             'message': "You accepted friend request",
-        }
-        return JsonResponse(data)
+        })
 
 
 @api_view(['DELETE'])
 def cancel_request(request, friend=None):
     if friend is not None:
         friend_user = User.objects.get(username=friend)
-        friend_request = FriendshipRequest.objects.get(to_user=request.user, from_user=friend_user)
+        friend_request = FriendshipRequest.objects.get(
+            to_user=request.user,
+            from_user=friend_user
+        )
         friend_request.cancel()
-        data = {
+
+        return JsonResponse({
             'status': True,
             'message': "Your friend request is removed",
-        }
-        return JsonResponse(data)
+        })
