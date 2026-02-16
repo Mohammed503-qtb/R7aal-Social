@@ -9,7 +9,6 @@ DEBUG = True
 ALLOWED_HOSTS = ['localhost', 'social.manjurulhoque.com', '127.0.0.1']
 
 INSTALLED_APPS = [
-    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.sites',
